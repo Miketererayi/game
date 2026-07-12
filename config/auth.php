@@ -42,6 +42,12 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Request-based guard for broadcast channel auth of guest players.
+        'game-player' => [
+            'driver' => 'game-player',
+            'provider' => null,
+        ],
     ],
 
     /*
