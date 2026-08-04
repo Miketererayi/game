@@ -28,7 +28,7 @@ class MazeGenerator
     /** Longer runs than this are trunk routes and never walled off. */
     private const MAX_SEGMENT = 4;
 
-    /** Enough for a full 10-player lobby: one Pac-Man plus nine ghosts. */
+    /** Floor for any board: one Pac-Man plus nine ghosts. */
     private const GHOST_SPAWNS = 9;
 
     private const DIRECTIONS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -47,18 +47,35 @@ class MazeGenerator
         private int $width = 25,
         private int $height = 23,
         private int $mutations = 14,
+        private int $ghostSpawns = self::GHOST_SPAWNS,
     ) {
         // Centre the ghost house on a corridor column so its door lines up.
         $this->centreX = intdiv($this->width, 2 * self::SPACING) * self::SPACING;
         $this->centreY = intdiv($this->height, 2);
+
+        // The house only has so many interior tiles; asking for more spawns
+        // than exist would fail validation on every seed and silently drop the
+        // match onto the fixed maze.
+        $this->ghostSpawns = max(self::GHOST_SPAWNS, min($ghostSpawns, count($this->houseCells())));
     }
 
-    /** Maze sized for the lobby: small games keep the tighter board. */
+    /**
+     * Maze sized for the lobby. Small games keep the tighter board; big ones
+     * need the room, or fifteen people share a maze built for ten and Pac-Man
+     * is caught the moment the match starts.
+     */
     public static function forPlayers(int $players): self
     {
+        // One Pac-Man, everyone else a ghost, each wanting its own spawn tile.
+        $spawns = max(self::GHOST_SPAWNS, $players - 1);
+
+        if ($players >= Maze::HUGE_MAZE_FROM_PLAYERS) {
+            return new self(31, 27, 14, $spawns);
+        }
+
         return $players >= Maze::LARGE_MAZE_FROM_PLAYERS
-            ? new self(25, 23)
-            : new self(19, 21);
+            ? new self(25, 23, 14, $spawns)
+            : new self(19, 21, 14, $spawns);
     }
 
     /**
@@ -140,8 +157,22 @@ class MazeGenerator
         }
     }
 
-    /** @return array<int, array{int, int}> */
+    /** As many spawn tiles as this lobby needs. */
     private function spawnCells(): array
+    {
+        return array_slice($this->houseCells(), 0, $this->ghostSpawns);
+    }
+
+    /**
+     * Every tile inside the ghost house, spread-out ones first.
+     *
+     * Order matters: the first nine are the original spawn pattern, so a
+     * normal lobby gets exactly the board it always did, and only bigger
+     * lobbies reach into the tighter gaps between them.
+     *
+     * @return array<int, array{int, int}>
+     */
+    private function houseCells(): array
     {
         [$cx, $cy] = [$this->centreX, $this->centreY];
 
@@ -149,6 +180,10 @@ class MazeGenerator
             [$cx - 2, $cy - 1], [$cx, $cy - 1], [$cx + 2, $cy - 1],
             [$cx - 2, $cy], [$cx - 1, $cy], [$cx + 1, $cy], [$cx + 2, $cy],
             [$cx - 2, $cy + 1], [$cx + 2, $cy + 1],
+
+            [$cx - 1, $cy - 1], [$cx + 1, $cy - 1], [$cx - 3, $cy - 1], [$cx + 3, $cy - 1],
+            [$cx - 3, $cy], [$cx, $cy], [$cx + 3, $cy],
+            [$cx - 1, $cy + 1], [$cx, $cy + 1], [$cx + 1, $cy + 1], [$cx - 3, $cy + 1], [$cx + 3, $cy + 1],
         ];
     }
 
@@ -328,7 +363,7 @@ class MazeGenerator
         $text = implode('', $rows);
 
         return substr_count($text, 'P') === 1
-            && substr_count($text, 'G') >= self::GHOST_SPAWNS
+            && substr_count($text, 'G') >= $this->ghostSpawns
             && substr_count($text, 'o') >= 2
             && $this->connected($grid)
             && ! $this->hasDeadEnd($grid);

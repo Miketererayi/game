@@ -87,6 +87,13 @@ class Maze
     /** Small lobbies stay on the tighter board; big ones get room to run. */
     public const LARGE_MAZE_FROM_PLAYERS = 6;
 
+    /**
+     * Past this the large board is too cramped to be fair: a ten-player match
+     * gets roughly 23 open tiles each, and fifteen on the same maze would get
+     * fifteen — Pac-Man caught on sight, over and over.
+     */
+    public const HUGE_MAZE_FROM_PLAYERS = 11;
+
     /*
      | Matches roll a fresh maze through MazeGenerator; these two hand-checked
      | layouts are what it falls back to if generation ever fails, and what the

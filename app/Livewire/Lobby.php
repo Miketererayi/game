@@ -34,6 +34,13 @@ class Lobby extends Component
      */
     public const DURATIONS = [60, 120, 180, 300, 480, 600];
 
+    /**
+     * Lobby sizes the host may choose. Capped at 20 because that is what the
+     * ghost house can give distinct spawn tiles to; beyond it players would
+     * start stacked on each other.
+     */
+    public const LOBBY_SIZES = [5, 8, 10, 12, 15, 20];
+
     public function mount(Game $game, GamePlayer $player): void
     {
         $this->game = $game;
@@ -186,6 +193,33 @@ class Lobby extends Component
         }
 
         $this->game->update(['match_duration_seconds' => $seconds]);
+
+        broadcast(new LobbyUpdated($this->game->id));
+    }
+
+    /**
+     * How many people the room holds. The maze is sized from the turnout at
+     * kick-off rather than from this, so raising it mid-lobby is safe.
+     */
+    public function setLobbySize(int $size): void
+    {
+        if (! $this->player->is_host || $this->game->status !== GameStatus::Lobby) {
+            return;
+        }
+
+        if (! in_array($size, self::LOBBY_SIZES, true)) {
+            return;
+        }
+
+        // Shrinking below the people already here would leave the lobby over
+        // capacity, with no rule for who has to go.
+        if ($size < $this->game->players()->count()) {
+            $this->addError('start', 'There are already more players than that. Ask someone to leave first.');
+
+            return;
+        }
+
+        $this->game->update(['max_players' => $size]);
 
         broadcast(new LobbyUpdated($this->game->id));
     }

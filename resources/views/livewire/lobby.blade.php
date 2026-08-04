@@ -122,6 +122,18 @@
 
             {{-- Shown to everyone, not just the host: how long you are signing
                  up for is worth knowing before you ready up. --}}
+            @if ($me->is_host && $inLobby)
+                <div class="mb-3 flex flex-wrap items-center gap-2 text-xs">
+                    <span class="text-slate-500">Room size</span>
+                    @foreach (\App\Livewire\Lobby::LOBBY_SIZES as $size)
+                        <button wire:click="setLobbySize({{ $size }})"
+                                class="rounded-full border px-3 py-1 {{ (int) $game->max_players === $size ? 'border-emerald-400 text-emerald-300' : 'border-slate-700 text-slate-400 hover:border-slate-500' }}">
+                            {{ $size }}
+                        </button>
+                    @endforeach
+                </div>
+            @endif
+
             <div class="mb-4 flex flex-wrap items-center gap-2 text-xs">
                 <span class="text-slate-500">Match length</span>
                 @if ($me->is_host && $inLobby)
