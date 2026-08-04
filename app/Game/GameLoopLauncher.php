@@ -17,7 +17,7 @@ class GameLoopLauncher
         $log = storage_path("logs/game-{$game->id}.log");
 
         Process::fromShellCommandline(
-            sprintf('nohup %s artisan game:tick %d >> %s 2>&1 &', PHP_BINARY, $game->id, escapeshellarg($log)),
+            sprintf('nohup %s artisan game:tick %d >> %s 2>&1 &', config('game.php_binary'), $game->id, escapeshellarg($log)),
             base_path(),
         )->run();
     }
