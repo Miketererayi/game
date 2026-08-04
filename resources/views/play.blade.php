@@ -34,6 +34,34 @@
             <button data-dir="down" class="h-14 w-14 rounded-lg bg-slate-800 text-xl">▼</button>
             <div></div>
         </div>
+
+        {{-- Plain forms rather than the JS client: these have to work even
+             when the tick loop is dead and no state is arriving. --}}
+        <div class="flex items-center gap-3 text-sm">
+            <form method="POST" action="{{ route('games.leave', $game) }}"
+                  onsubmit="return confirm('Leave the match? The AI will take over your character.')">
+                @csrf
+                <button type="submit"
+                        class="rounded-lg border border-slate-700 px-3 py-1.5 text-slate-400 hover:border-red-500/50 hover:text-red-300">
+                    Leave match
+                </button>
+            </form>
+
+            @if ($player->is_host)
+                <form method="POST" action="{{ route('games.end', $game) }}"
+                      onsubmit="return confirm('End the match for everyone?')">
+                    @csrf
+                    <button type="submit"
+                            class="rounded-lg border border-red-500/40 px-3 py-1.5 text-red-300 hover:bg-red-500/10">
+                        End match
+                    </button>
+                </form>
+            @endif
+        </div>
+
+        @error('end')
+            <p class="text-sm text-red-300">{{ $message }}</p>
+        @enderror
     </div>
     @vite('resources/js/game/client.js')
 </x-layouts.app>

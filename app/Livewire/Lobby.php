@@ -9,6 +9,7 @@ use App\Events\LobbyUpdated;
 use App\Game\GameLoopLauncher;
 use App\Game\GameStateRepository;
 use App\Game\MazeGenerator;
+use App\Game\PlayerDeparture;
 use App\Models\Game;
 use App\Models\GamePlayer;
 use Illuminate\Support\Str;
@@ -175,6 +176,17 @@ class Lobby extends Component
         }
 
         broadcast(new LobbyUpdated($this->game->id));
+    }
+
+    /**
+     * Give up the seat and go home. Hosting passes to whoever is left; if
+     * nobody is, the room closes rather than lingering with only AI in it.
+     */
+    public function leave(PlayerDeparture $departure): void
+    {
+        $departure->depart($this->game, $this->player);
+
+        $this->redirect(route('home'));
     }
 
     public function start(GameStateRepository $stateRepo, GameLoopLauncher $launcher): void

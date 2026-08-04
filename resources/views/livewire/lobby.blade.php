@@ -19,19 +19,26 @@
 
         @if ($lastResult)
             @php
-                $pacmanWon = ($lastResult['winner_role'] ?? null) === 'pacman';
+                // A match can also end with nobody winning — the host closing
+                // it, or the last human leaving.
+                $winnerRole = $lastResult['winner_role'] ?? null;
+                $pacmanWon = $winnerRole === 'pacman';
+                $noWinner = $winnerRole === null;
                 $reasons = [
                     'pellets_cleared' => 'every pellet eaten',
                     'time_up' => 'time ran out',
                     'pacman_caught' => 'Pac-Man was caught',
+                    'host_ended' => 'the host ended the match',
+                    'abandoned' => 'everyone left',
                 ];
+                $accent = $noWinner ? 'slate-500' : ($pacmanWon ? 'yellow-400' : 'cyan-400');
                 $scores = collect($lastResult['scores'] ?? [])->sortByDesc('score')->values();
             @endphp
 
-            <section class="rounded-2xl border {{ $pacmanWon ? 'border-yellow-400/40' : 'border-cyan-400/40' }} bg-slate-900 p-6">
+            <section class="rounded-2xl border {{ $noWinner ? 'border-slate-600/40' : ($pacmanWon ? 'border-yellow-400/40' : 'border-cyan-400/40') }} bg-slate-900 p-6">
                 <div class="text-center">
-                    <h2 class="text-2xl font-black {{ $pacmanWon ? 'text-yellow-300' : 'text-cyan-300' }}">
-                        {{ $pacmanWon ? 'PAC-MAN WINS' : 'GHOSTS WIN' }}
+                    <h2 class="text-2xl font-black {{ $noWinner ? 'text-slate-300' : ($pacmanWon ? 'text-yellow-300' : 'text-cyan-300') }}">
+                        {{ $noWinner ? 'MATCH ENDED' : ($pacmanWon ? 'PAC-MAN WINS' : 'GHOSTS WIN') }}
                     </h2>
                     <p class="mt-1 text-xs text-slate-500">
                         Round {{ $round }} · {{ $reasons[$lastResult['reason'] ?? ''] ?? $lastResult['reason'] ?? '' }}
@@ -214,6 +221,15 @@
             @endif
         </div>
         @endif
+
+        {{-- Outside the lobby check on purpose: between rounds is exactly when
+             someone wants to drop out. --}}
+        <button wire:click="leave"
+                wire:confirm="Leave this game?"
+                wire:loading.attr="disabled"
+                class="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-400 hover:border-red-500/50 hover:text-red-300 disabled:opacity-50">
+            Leave game
+        </button>
     </div>
 
     @script

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Enums\GameStatus;
+use App\Game\MatchEnder;
+use App\Game\PlayerDeparture;
 use App\Models\Game;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -100,6 +102,43 @@ class GameController extends Controller
         }
 
         return view('play', ['game' => $game, 'player' => $player]);
+    }
+
+    /**
+     * Walk away from a game. In the lobby that frees the seat; mid-match the
+     * character is handed to the AI so the others can play on.
+     */
+    public function leave(Request $request, Game $game, PlayerDeparture $departure): RedirectResponse
+    {
+        $player = $this->currentPlayer($request, $game);
+
+        if ($player) {
+            $departure->depart($game, $player);
+        }
+
+        return redirect()->route('home')->with('status', 'You left the game.');
+    }
+
+    /**
+     * Host-only early finish. Deliberately does not require a live tick loop:
+     * the matches most in need of ending are the ones whose loop is gone.
+     */
+    public function endMatch(Request $request, Game $game, MatchEnder $ender): RedirectResponse
+    {
+        $player = $this->currentPlayer($request, $game);
+
+        if (! $player) {
+            return redirect()->route('home')->withErrors(['code' => 'Join the game first.']);
+        }
+
+        if (! $player->is_host) {
+            return redirect()->route('games.play', $game)
+                ->withErrors(['end' => 'Only the host can end the match.']);
+        }
+
+        $ender->end($game, 'host_ended');
+
+        return redirect()->route('games.lobby', $game);
     }
 
     private function currentPlayer(Request $request, Game $game)
