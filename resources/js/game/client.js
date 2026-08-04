@@ -167,15 +167,25 @@ function init(root) {
 
     channel.listen('GameEnded', (e) => {
         gameOver = true;
-        const iWon = (e.winnerRole === 'pacman') === (myRole === 'pacman');
-        sound(iWon ? 'win' : 'lose');
+
+        // A match can also end with nobody winning — the host closing it, or
+        // the last human leaving. Announcing a winner there would be a lie.
+        const noWinner = e.winnerRole !== 'pacman' && e.winnerRole !== 'ghost';
+        const iWon = !noWinner && (e.winnerRole === 'pacman') === (myRole === 'pacman');
+        const REASONS = {
+            host_ended: 'The host ended the match',
+            abandoned: 'Everyone else left',
+        };
+
+        if (!noWinner) sound(iWon ? 'win' : 'lose');
+
         const lines = [
-            e.winnerRole === 'pacman' ? 'PAC-MAN WINS' : 'GHOSTS WIN',
-            iWon ? 'Victory!' : 'Defeat',
+            noWinner ? 'MATCH ENDED' : e.winnerRole === 'pacman' ? 'PAC-MAN WINS' : 'GHOSTS WIN',
+            noWinner ? REASONS[e.reason] ?? '' : iWon ? 'Victory!' : 'Defeat',
             '',
             ...e.scores.sort((a, b) => b.score - a.score).map((s) => `${s.name}: ${s.score}`),
         ];
-        endScreen(lines, e.winnerRole === 'pacman' ? '#facc15' : '#22d3ee', lobbyUrl);
+        endScreen(lines, noWinner ? '#94a3b8' : e.winnerRole === 'pacman' ? '#facc15' : '#22d3ee', lobbyUrl);
         // Back to the team room, not the front page — the squad stays together
         // for the next round and the full scoreboard lives there.
         setTimeout(() => (window.location = lobbyUrl), 6000);
@@ -190,16 +200,46 @@ function init(root) {
 
     let lastSent = '';
     let lastSentAt = 0;
+    let pendingIntent = null;
+    let flushTimer = null;
 
-    const sendIntent = (dir) => {
-        const now = performance.now();
-        // debounce: never faster than the tick rate, skip repeats
-        if (dir === lastSent || now - lastSentAt < TICK_MS) return;
+    /** What the server last told us we are actually doing. */
+    const serverDir = () => snap?.players?.[playerId]?.dir ?? null;
+
+    const postIntent = (dir) => {
         lastSent = dir;
-        lastSentAt = now;
+        lastSentAt = performance.now();
         window.axios.post(inputUrl, { direction: dir }).catch(() => {
             lastSent = ''; // allow retry on failure
         });
+    };
+
+    const sendIntent = (dir) => {
+        // Repeats are only pointless once the turn has actually happened. An
+        // intent can be missed (asked for a shade past the tile centre) or
+        // overwritten by a later press, and the engine keeps only the newest
+        // one — so suppressing repeats before the server has turned us loses
+        // the turn outright. Keep asking until it takes.
+        if (dir === lastSent && serverDir() === dir) return;
+
+        const wait = TICK_MS - (performance.now() - lastSentAt);
+
+        if (wait > 0) {
+            // Inside the rate-limit window: hold the press rather than binning
+            // it. A turn asked for between ticks is still a turn asked for,
+            // and dropping it is a keystroke the player never gets back.
+            pendingIntent = dir;
+            flushTimer ??= setTimeout(() => {
+                flushTimer = null;
+                const next = pendingIntent;
+                pendingIntent = null;
+                if (next) postIntent(next);
+            }, wait);
+
+            return;
+        }
+
+        postIntent(dir);
     };
 
     let lastAbilityAt = 0;
