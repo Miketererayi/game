@@ -9,7 +9,10 @@
         <div class="w-full max-w-md space-y-8">
             <header class="text-center">
                 <h1 class="text-4xl font-black tracking-tight text-yellow-400">MAZE CHASE</h1>
-                <p class="mt-2 text-sm text-slate-400">1 Pac-Man vs up to 9 ghosts. Catch or be caught — the catcher takes the crown.</p>
+                {{-- Read from the lobby sizes on offer rather than typed in,
+                     so raising the cap can never leave the front page
+                     advertising a smaller game than the one you can host. --}}
+                <p class="mt-2 text-sm text-slate-400">1 Pac-Man vs up to {{ max(\App\Livewire\Lobby::LOBBY_SIZES) - 1 }} ghosts. Catch or be caught. The catcher takes the crown.</p>
                 <p class="mt-1 text-xs text-slate-500">Short on people? Fill the maze with AI players and play solo.</p>
             </header>
 

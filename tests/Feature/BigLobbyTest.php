@@ -175,6 +175,18 @@ class BigLobbyTest extends TestCase
         );
     }
 
+    public function test_the_front_page_advertises_the_size_it_can_actually_host(): void
+    {
+        $html = $this->get(route('home'))->assertOk()->getContent();
+
+        // Derived from LOBBY_SIZES, so raising the cap cannot leave the copy
+        // promising a smaller game than the one you can start.
+        $ghosts = max(Lobby::LOBBY_SIZES) - 1;
+
+        $this->assertStringContainsString("up to {$ghosts} ghosts", $html);
+        $this->assertStringNotContainsString('up to 9 ghosts', $html);
+    }
+
     public function test_the_huge_tier_only_kicks_in_when_it_is_needed(): void
     {
         $this->assertSame(11, Maze::HUGE_MAZE_FROM_PLAYERS);
