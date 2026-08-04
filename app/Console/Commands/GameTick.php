@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 
 class GameTick extends Command
 {
-    protected $signature = 'game:tick {gameId} {--rate=15 : ticks per second}';
+    protected $signature = 'game:tick {gameId} {--rate= : ticks per second, defaults to config game.movement.tick_rate}';
 
     protected $description = 'Run the authoritative simulation loop for a match';
 
@@ -24,7 +24,7 @@ class GameTick extends Command
             return self::FAILURE;
         }
 
-        $rate = max(1, (int) $this->option('rate'));
+        $rate = max(1, (int) ($this->option('rate') ?: config('game.movement.tick_rate')));
         $interval = 1.0 / $rate;
         $engine = new Engine($game, $repo);
 

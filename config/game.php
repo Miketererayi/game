@@ -4,11 +4,30 @@
 |--------------------------------------------------------------------------
 | Game runtime
 |--------------------------------------------------------------------------
-| Settings for the out-of-band match processes rather than the game rules
-| themselves.
+| Settings for the match processes and for the movement rule that the server
+| and the browser must agree on.
 */
 
 return [
+
+    /*
+    | The movement rule, shared by the authoritative engine and the browser's
+    | prediction of the local player.
+    |
+    | These live here rather than as constants in Engine because both sides
+    | need them. Duplicated by hand they would eventually drift, and the
+    | symptom of drift is the player's character rubber-banding a fraction of
+    | a tile on every correction — miserable to reproduce and easy to blame on
+    | the network. One source, passed to the client with the maze.
+    */
+    'movement' => [
+        'tick_rate' => 15,            // ticks per second
+        'pacman_speed' => 4.2,        // tiles per second
+        'pacman_power_speed' => 5.0,
+        'ghost_speed' => 4.0,
+        'ghost_boost_multiplier' => 2.0,
+        'turn_tolerance' => 0.35,     // how close to a tile centre a turn may snap
+    ],
 
     /*
     | PHP binary used to spawn the detached game:tick loop.

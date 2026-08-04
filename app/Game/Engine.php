@@ -17,14 +17,6 @@ use App\Models\Game;
  */
 class Engine
 {
-    private const PACMAN_SPEED = 4.2;          // tiles per second
-
-    private const PACMAN_POWER_SPEED = 5.0;
-
-    private const GHOST_SPEED = 4.0;
-
-    private const TURN_TOLERANCE = 0.35;       // how close to a tile center a turn may snap
-
     private const EAT_RADIUS = 0.45;
 
     private const CATCH_RADIUS = 0.7;
@@ -57,11 +49,15 @@ class Engine
 
     private ?BotBrain $brain = null;
 
+    /** Shared with the browser so its prediction matches this simulation. */
+    private array $movement;
+
     public function __construct(
         private Game $game,
         private GameStateRepository $repo,
     ) {
         $this->layout = $game->maze_layout;
+        $this->movement = config('game.movement');
     }
 
     /**
@@ -335,8 +331,8 @@ class Engine
                 $cy = (int) round($y);
                 [$ix, $iy] = $this->vector($intent);
 
-                if (abs($x - $cx) <= self::TURN_TOLERANCE
-                    && abs($y - $cy) <= self::TURN_TOLERANCE
+                if (abs($x - $cx) <= $this->movement['turn_tolerance']
+                    && abs($y - $cy) <= $this->movement['turn_tolerance']
                     && $this->walkable($cx + $ix, $cy + $iy, $closedWalls)) {
                     $x = (float) $cx;
                     $y = (float) $cy;
@@ -352,8 +348,10 @@ class Engine
         }
 
         $speed = $player['role'] === 'pacman'
-            ? ($powered ? self::PACMAN_POWER_SPEED : self::PACMAN_SPEED)
-            : (((float) ($player['speed_until'] ?? 0)) > $now ? self::GHOST_SPEED * 2 : self::GHOST_SPEED);
+            ? ($powered ? $this->movement['pacman_power_speed'] : $this->movement['pacman_speed'])
+            : (((float) ($player['speed_until'] ?? 0)) > $now
+                ? $this->movement['ghost_speed'] * $this->movement['ghost_boost_multiplier']
+                : $this->movement['ghost_speed']);
 
         [$dx, $dy] = $this->vector($dir);
         $x += $dx * $speed * $dt;
@@ -500,6 +498,9 @@ class Engine
                 'role' => $p['role'],
                 'ghost_slot' => (int) $p['ghost_slot'],
                 'respawn_until' => (float) $p['respawn_until'],
+                // The browser predicts the local player's movement, so it has
+                // to know about a speed burst to predict it at the right pace.
+                'speed_until' => (float) ($p['speed_until'] ?? 0),
                 'score' => (int) ($p['score'] ?? 0),
                 'name' => $p['name'],
                 'ability' => $p['role'] === 'ghost'

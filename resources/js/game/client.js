@@ -14,12 +14,24 @@ function init(root) {
     const maze = JSON.parse(root.dataset.maze);
     const spriteConfig = JSON.parse(root.dataset.sprites);
     const soundConfig = JSON.parse(root.dataset.sounds ?? '{}');
+    // The engine's movement rule, handed over so prediction matches it.
+    // Falls back rather than throwing: a stale view cache serving a page
+    // without this attribute must not take the whole client down mid-match.
+    const movement = {
+        tick_rate: 15,
+        pacman_speed: 4.2,
+        pacman_power_speed: 5.0,
+        ghost_speed: 4.0,
+        ghost_boost_multiplier: 2.0,
+        turn_tolerance: 0.35,
+        ...JSON.parse(root.dataset.movement ?? '{}'),
+    };
 
     const canvas = document.getElementById('game-canvas');
     const ctx = canvas.getContext('2d');
 
     const TILE = 26;
-    const TICK_MS = 1000 / 15;
+    const TICK_MS = 1000 / movement.tick_rate;
     const FOG_RADIUS = 4.5; // tiles a ghost can see
 
     canvas.width = maze.width * TILE;
@@ -149,6 +161,7 @@ function init(root) {
             }
             myRole = me.role;
         }
+        reconcile();
         updateHud(s);
     });
 
@@ -215,6 +228,11 @@ function init(root) {
     };
 
     const sendIntent = (dir) => {
+        // Steer locally first. This is the line that removes the round trip
+        // from how the game feels: the character starts turning now, and the
+        // server's answer arrives to confirm it rather than to cause it.
+        localIntent = dir;
+
         // Repeats are only pointless once the turn has actually happened. An
         // intent can be missed (asked for a shade past the tile centre) or
         // overwritten by a later press, and the engine keeps only the newest
@@ -352,6 +370,146 @@ function init(root) {
         clearTimeout(bannerTimeout);
     }
 
+    // ---- local prediction -------------------------------------------------
+    // Everyone else is drawn from server snapshots, one tick behind, which
+    // hides jitter. Doing that to the character you are steering costs a full
+    // round trip before a keypress shows up, which reads as lag. So this
+    // player alone is simulated locally, with the same rule the engine runs,
+    // and corrected whenever the server disagrees. The server is still the
+    // only thing that decides where anyone actually is — this only changes
+    // what we draw while waiting to hear it.
+
+    const SNAP_TILES = 1.0; // past this we mispredicted something structural
+    const CORRECTION = 0.25; // share of a small error absorbed per snapshot
+
+    const VECTORS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+
+    let local = null; // { x, y, dir } for our own character
+    let localIntent = null; // direction we want, re-applied until it takes
+    let lastRole = null;
+
+    const serverNowMs = () => Date.now() + serverClockOffset;
+
+    const isOpposite = (a, b) =>
+        (a === 'up' && b === 'down') || (a === 'down' && b === 'up') ||
+        (a === 'left' && b === 'right') || (a === 'right' && b === 'left');
+
+    const walkableFor = (role, x, y) => {
+        let wx = x;
+        if (wx < 0) wx += maze.width;
+        else if (wx >= maze.width) wx -= maze.width;
+
+        if (y < 0 || y >= maze.height) return false;
+        if (maze.tiles[y][wx] === 1) return false;
+
+        const key = `${wx},${y}`;
+        if (closedWalls.has(key)) return false;
+        // A ghost's dropped wall blocks Pac-Man only.
+        return !(role === 'pacman' && tempWalls.has(key));
+    };
+
+    const speedFor = (role, nowMs) => {
+        if (role === 'pacman') {
+            return powerUntil > nowMs ? movement.pacman_power_speed : movement.pacman_speed;
+        }
+        const boosted = (snap?.players?.[playerId]?.speed_until ?? 0) * 1000 > nowMs;
+        return boosted ? movement.ghost_speed * movement.ghost_boost_multiplier : movement.ghost_speed;
+    };
+
+    function predictStep(dt) {
+        const me = snap?.players?.[playerId];
+        if (!local || !me || gameOver) return;
+
+        const nowMs = serverNowMs();
+        // A respawning ghost is held still by the server; predicting through
+        // that would only have to be undone.
+        if ((me.respawn_until ?? 0) * 1000 > nowMs) return;
+
+        const role = me.role;
+        let { x, y, dir } = local;
+
+        // Turning: reversals are always allowed, other turns snap at centres.
+        if (localIntent && localIntent !== dir) {
+            if (isOpposite(localIntent, dir)) {
+                dir = localIntent;
+            } else {
+                const cx = Math.round(x);
+                const cy = Math.round(y);
+                const [ix, iy] = VECTORS[localIntent];
+
+                if (Math.abs(x - cx) <= movement.turn_tolerance &&
+                    Math.abs(y - cy) <= movement.turn_tolerance &&
+                    walkableFor(role, cx + ix, cy + iy)) {
+                    x = cx;
+                    y = cy;
+                    dir = localIntent;
+                }
+            }
+        }
+
+        if (!VECTORS[dir]) {
+            local = { x, y, dir };
+            return;
+        }
+
+        const [dx, dy] = VECTORS[dir];
+        const fromX = x;
+        const fromY = y;
+        const speed = speedFor(role, nowMs);
+
+        x += dx * speed * dt;
+        y += dy * speed * dt;
+
+        // Stop at the centre of the current tile when the next one is a wall.
+        if (dx !== 0) {
+            const cur = Math.round(fromX);
+            if (!walkableFor(role, cur + dx, Math.round(y))) {
+                x = dx > 0 ? Math.min(x, cur) : Math.max(x, cur);
+            }
+        } else {
+            const cur = Math.round(fromY);
+            if (!walkableFor(role, Math.round(x), cur + dy)) {
+                y = dy > 0 ? Math.min(y, cur) : Math.max(y, cur);
+            }
+        }
+
+        if (x < -0.5) x += maze.width;
+        else if (x > maze.width - 0.5) x -= maze.width;
+
+        local = { x, y, dir };
+    }
+
+    /** Fold the authoritative position back into our guess. */
+    function reconcile() {
+        const me = snap?.players?.[playerId];
+        if (!me) return;
+
+        const roleChanged = lastRole !== null && me.role !== lastRole;
+        lastRole = me.role;
+
+        if (!local) {
+            local = { x: me.x, y: me.y, dir: me.dir };
+            localIntent = me.dir;
+            return;
+        }
+
+        const dx = me.x - local.x;
+        const dy = me.y - local.y;
+        const respawning = (me.respawn_until ?? 0) * 1000 > serverNowMs();
+
+        // Anything prediction could not have known about — a role rotation, a
+        // catch, a blink, a tunnel wrap — is a hard correction. Easing those
+        // would slide the character across the maze.
+        if (roleChanged || respawning || Math.hypot(dx, dy) > SNAP_TILES) {
+            local = { x: me.x, y: me.y, dir: me.dir };
+            localIntent = me.dir;
+            return;
+        }
+
+        local.x += dx * CORRECTION;
+        local.y += dy * CORRECTION;
+    }
+
     // ---- rendering ------------------------------------------------------------
     const px = (tileCoord) => (tileCoord + 0.5) * TILE;
 
@@ -371,6 +529,11 @@ function init(root) {
                     y: prev.y + (cur.y - prev.y) * t,
                 };
             }
+        }
+
+        // Our own character comes from prediction, not from the past.
+        if (local && out[playerId]) {
+            out[playerId] = { ...out[playerId], x: local.x, y: local.y, dir: local.dir };
         }
 
         return out;
@@ -518,7 +681,15 @@ function init(root) {
         ctx.restore();
     }
 
+    let lastFrameAt = 0;
+
     function render(nowMs) {
+        // Clamped so a backgrounded tab does not resume by teleporting us
+        // several tiles forward before the next correction lands.
+        const dt = lastFrameAt ? Math.min((nowMs - lastFrameAt) / 1000, 0.1) : 0;
+        lastFrameAt = nowMs;
+        predictStep(dt);
+
         drawMaze();
         drawPellets(nowMs);
         const players = lerpPlayers();

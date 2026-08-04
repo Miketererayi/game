@@ -8,7 +8,11 @@
          data-lobby-url="{{ route('games.lobby', $game) }}"
          data-maze="{{ json_encode($game->maze_layout) }}"
          data-sprites="{{ json_encode(config('sprites')) }}"
-         data-sounds="{{ json_encode(config('sounds')) }}">
+         data-sounds="{{ json_encode(config('sounds')) }}"
+         {{-- The same movement rule the engine runs, so the browser can
+              predict this player's next moves instead of waiting a round
+              trip to draw them. --}}
+         data-movement="{{ json_encode(config('game.movement')) }}">
         <div id="hud" class="flex w-full max-w-3xl items-center justify-between font-mono text-sm text-slate-300">
             <span id="hud-role" class="font-bold text-yellow-400">—</span>
             <span id="hud-pellets">Pellets: —</span>
