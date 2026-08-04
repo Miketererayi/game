@@ -120,6 +120,24 @@
                 @endif
             </div>
 
+            {{-- Shown to everyone, not just the host: how long you are signing
+                 up for is worth knowing before you ready up. --}}
+            <div class="mb-4 flex flex-wrap items-center gap-2 text-xs">
+                <span class="text-slate-500">Match length</span>
+                @if ($me->is_host && $inLobby)
+                    @foreach (\App\Livewire\Lobby::DURATIONS as $seconds)
+                        <button wire:click="setDuration({{ $seconds }})"
+                                class="rounded-full border px-3 py-1 {{ (int) $game->match_duration_seconds === $seconds ? 'border-yellow-400 text-yellow-300' : 'border-slate-700 text-slate-400 hover:border-slate-500' }}">
+                            {{ intdiv($seconds, 60) }} min
+                        </button>
+                    @endforeach
+                @else
+                    <span class="rounded-full border border-slate-700 px-3 py-1 text-slate-300">
+                        {{ intdiv((int) $game->match_duration_seconds, 60) }} min
+                    </span>
+                @endif
+            </div>
+
             <ul class="space-y-2">
                 @foreach ($players as $player)
                     <li class="flex items-center justify-between rounded-lg bg-slate-800/60 px-4 py-2"

@@ -27,6 +27,13 @@ class Lobby extends Component
     /** Arcade ghost names, so AI players read as characters not slots. */
     private const BOT_NAMES = ['Blinky', 'Pinky', 'Inky', 'Clyde', 'Sue', 'Funky', 'Orson', 'Tim', 'Kinky'];
 
+    /**
+     * Match lengths the host may choose, in seconds. A fixed set rather than a
+     * free number: the column is an unsigned smallint, and a match of eight
+     * seconds or nine hours is a way to break a lobby, not a way to play.
+     */
+    public const DURATIONS = [60, 120, 180, 300, 480, 600];
+
     public function mount(Game $game, GamePlayer $player): void
     {
         $this->game = $game;
@@ -159,6 +166,26 @@ class Lobby extends Component
         }
 
         $this->game->players()->where('id', $playerId)->where('is_bot', true)->delete();
+
+        broadcast(new LobbyUpdated($this->game->id));
+    }
+
+    /**
+     * How long the next match runs. Only meaningful before it starts — the
+     * countdown is baked into Redis as an absolute end time at kick-off, so
+     * changing this mid-match would move nothing.
+     */
+    public function setDuration(int $seconds): void
+    {
+        if (! $this->player->is_host || $this->game->status !== GameStatus::Lobby) {
+            return;
+        }
+
+        if (! in_array($seconds, self::DURATIONS, true)) {
+            return;
+        }
+
+        $this->game->update(['match_duration_seconds' => $seconds]);
 
         broadcast(new LobbyUpdated($this->game->id));
     }
