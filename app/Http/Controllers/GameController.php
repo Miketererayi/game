@@ -93,7 +93,9 @@ class GameController extends Controller
             return redirect()->route('home')->withErrors(['code' => 'Join the game first.']);
         }
 
-        if ($game->status === GameStatus::Lobby) {
+        // The lobby doubles as the team room between rounds: it's where the
+        // results and the rematch button live.
+        if ($game->status !== GameStatus::Active) {
             return redirect()->route('games.lobby', $game);
         }
 

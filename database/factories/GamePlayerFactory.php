@@ -40,4 +40,9 @@ class GamePlayerFactory extends Factory
     {
         return $this->state(['is_host' => true]);
     }
+
+    public function bot(): static
+    {
+        return $this->state(['is_bot' => true, 'is_ready' => true, 'guest_name' => 'CPU '.fake()->firstName()]);
+    }
 }

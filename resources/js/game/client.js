@@ -10,6 +10,7 @@ function init(root) {
     const playerId = Number(root.dataset.playerId);
     const inputUrl = root.dataset.inputUrl;
     const abilityUrl = root.dataset.abilityUrl;
+    const lobbyUrl = root.dataset.lobbyUrl;
     const maze = JSON.parse(root.dataset.maze);
     const spriteConfig = JSON.parse(root.dataset.sprites);
     const soundConfig = JSON.parse(root.dataset.sounds ?? '{}');
@@ -174,8 +175,10 @@ function init(root) {
             '',
             ...e.scores.sort((a, b) => b.score - a.score).map((s) => `${s.name}: ${s.score}`),
         ];
-        endScreen(lines, e.winnerRole === 'pacman' ? '#facc15' : '#22d3ee');
-        setTimeout(() => (window.location = '/'), 8000);
+        endScreen(lines, e.winnerRole === 'pacman' ? '#facc15' : '#22d3ee', lobbyUrl);
+        // Back to the team room, not the front page — the squad stays together
+        // for the next round and the full scoreboard lives there.
+        setTimeout(() => (window.location = lobbyUrl), 6000);
     });
 
     // ---- input ------------------------------------------------------------
@@ -258,7 +261,9 @@ function init(root) {
             hudRole.textContent = 'PAC-MAN';
             hudRole.style.color = '#facc15';
         } else if (myRole === 'ghost') {
-            hudRole.textContent = 'GHOST';
+            // Name the colour too, so "the green ghost" means something.
+            const label = sprites.ghosts[Math.max(0, me?.ghost_slot ?? 0) % sprites.ghosts.length]?.label;
+            hudRole.textContent = label ? `${label.toUpperCase()} GHOST` : 'GHOST';
             hudRole.style.color = '#22d3ee';
         }
     }
@@ -288,12 +293,22 @@ function init(root) {
         bannerTimeout = setTimeout(() => bannerEl.classList.add('hidden'), ms);
     }
 
-    function endScreen(lines, color) {
+    function endScreen(lines, color, continueUrl) {
         bannerText.innerHTML = lines
             .map((l, i) => `<div class="${i === 0 ? '' : 'text-lg font-semibold'}">${l}</div>`)
             .join('');
+
+        if (continueUrl) {
+            const link = document.createElement('a');
+            link.href = continueUrl;
+            link.textContent = 'See full results →';
+            link.className = 'mt-4 inline-block text-base font-semibold text-slate-300 underline';
+            bannerText.appendChild(link);
+        }
+
         bannerText.style.color = color;
         bannerEl.classList.remove('hidden');
+        bannerEl.classList.remove('pointer-events-none'); // the link needs clicks
         clearTimeout(bannerTimeout);
     }
 
@@ -406,19 +421,27 @@ function init(root) {
                 const sprite = powered && !respawning
                     ? sprites.frightened
                     : sprites.ghosts[Math.max(0, p.ghost_slot) % sprites.ghosts.length];
+                // Slots past the pack's four painted ghosts are recoloured.
+                if (sprite.hue) ctx.filter = `hue-rotate(${sprite.hue}deg)`;
                 ctx.drawImage(frameOf(sprite, nowMs, p.dir), -TILE * 0.6, -TILE * 0.62, TILE * 1.2, TILE * 1.2);
             }
             ctx.restore();
 
-            // name tag
-            if (p.id !== playerId) {
-                ctx.save();
-                ctx.font = '9px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillStyle = 'rgba(226, 232, 240, 0.75)';
-                ctx.fillText(p.name, px(p.x), px(p.y) - TILE * 0.75);
-                ctx.restore();
-            }
+            // Name tag above every sprite — your own included, with a marker,
+            // because "which one am I?" is the first thing a full lobby asks.
+            const mine = p.id === playerId;
+            ctx.save();
+            ctx.font = mine ? 'bold 10px monospace' : '9px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = mine ? '#facc15' : 'rgba(226, 232, 240, 0.75)';
+            ctx.strokeStyle = 'rgba(2, 6, 23, 0.9)';
+            ctx.lineWidth = 3;
+
+            const label = mine ? `▼ ${p.name}` : p.name;
+            const ty = px(p.y) - TILE * (mine ? 0.85 : 0.75);
+            ctx.strokeText(label, px(p.x), ty); // outline keeps names legible on pellets
+            ctx.fillText(label, px(p.x), ty);
+            ctx.restore();
         }
     }
 
@@ -447,7 +470,10 @@ function init(root) {
         for (const p of Object.values(players)) {
             if (p.role !== 'ghost' || p.id === playerId) continue;
             const sprite = sprites.ghosts[Math.max(0, p.ghost_slot) % sprites.ghosts.length];
+            ctx.save();
+            if (sprite.hue) ctx.filter = `hue-rotate(${sprite.hue}deg)`;
             ctx.drawImage(frameOf(sprite, 0, p.dir), px(p.x) - TILE * 0.6, px(p.y) - TILE * 0.62, TILE * 1.2, TILE * 1.2);
+            ctx.restore();
         }
         ctx.restore();
     }

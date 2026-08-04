@@ -55,6 +55,8 @@ class Engine
 
     private array $layout;
 
+    private ?BotBrain $brain = null;
+
     public function __construct(
         private Game $game,
         private GameStateRepository $repo,
@@ -101,6 +103,10 @@ class Engine
 
         // temp walls block only pacman
         $pacmanBlocked = $closedWalls + $tempWalls;
+
+        // AI players choose an intent the same way a human presses a key, so
+        // everything downstream treats them identically.
+        $inputs = $this->botIntents($players, $pacmanId, $powerActive, $closedWalls, $pacmanBlocked, $now) + $inputs;
 
         // 1-3. movement, server-authoritative
         foreach ($players as $pid => &$player) {
@@ -222,6 +228,28 @@ class Engine
         }
 
         return true;
+    }
+
+    /**
+     * @return array<int, string> player id => direction, empty when the match
+     *                            has no bots in it
+     */
+    private function botIntents(array $players, int $pacmanId, bool $powerActive, array $closedWalls, array $pacmanBlocked, float $now): array
+    {
+        $bots = array_filter($players, fn ($p) => ! empty($p['is_bot']));
+
+        if (! $bots) {
+            return [];
+        }
+
+        // Only a Pac-Man bot needs the pellet list; skip the read otherwise.
+        $pellets = array_filter($bots, fn ($p) => $p['role'] === 'pacman')
+            ? $this->repo->pellets($this->game->id)
+            : [];
+
+        $this->brain ??= new BotBrain($this->layout);
+
+        return $this->brain->intents($players, $pacmanId, $powerActive, $pellets, $closedWalls, $now, $pacmanBlocked);
     }
 
     /**

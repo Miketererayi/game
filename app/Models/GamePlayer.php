@@ -26,6 +26,7 @@ class GamePlayer extends Model implements Authenticatable
         return [
             'role' => PlayerRole::class,
             'is_host' => 'boolean',
+            'is_bot' => 'boolean',
             'is_ready' => 'boolean',
             'is_connected' => 'boolean',
         ];

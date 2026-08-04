@@ -19,7 +19,7 @@ class GameFactory extends Factory
             'status' => GameStatus::Lobby,
             'maze_layout' => Maze::classic(),
             'mode' => 'classic',
-            'max_players' => 5,
+            'max_players' => 10,
             'match_duration_seconds' => 300,
         ];
     }

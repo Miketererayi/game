@@ -84,6 +84,7 @@ class GameStateRepository
                 'caught_count' => 0,
                 'speed_until' => 0,
                 'ability_ready_at' => 0,
+                'is_bot' => (int) $player->is_bot,
                 'name' => $player->display_name,
             ]);
         }

@@ -34,11 +34,23 @@ return [
         'fps' => 10,
     ],
 
+    /*
+     | One entry per ghost slot, so a 10-player match has 9 telling-apart-able
+     | ghosts. The pack ships four; slots 4-8 recolour Blinky with a CSS/canvas
+     | hue rotation, at hues chosen to sit clear of the four painted ones
+     | (red 0, orange 30, cyan 180, pink 320) and of Pac-Man's yellow.
+     | 'label' is what the lobby colour picker calls the slot.
+    */
     'ghosts' => [
-        ['frames' => ["{$pack}/ghosts/blinky.png"], 'fps' => 0, 'direction' => 'none'],
-        ['frames' => ["{$pack}/ghosts/inky.png"], 'fps' => 0, 'direction' => 'none'],
-        ['frames' => ["{$pack}/ghosts/pinky.png"], 'fps' => 0, 'direction' => 'none'],
-        ['frames' => ["{$pack}/ghosts/clyde.png"], 'fps' => 0, 'direction' => 'none'],
+        ['frames' => ["{$pack}/ghosts/blinky.png"], 'fps' => 0, 'direction' => 'none', 'label' => 'Red'],
+        ['frames' => ["{$pack}/ghosts/inky.png"], 'fps' => 0, 'direction' => 'none', 'label' => 'Cyan'],
+        ['frames' => ["{$pack}/ghosts/pinky.png"], 'fps' => 0, 'direction' => 'none', 'label' => 'Pink'],
+        ['frames' => ["{$pack}/ghosts/clyde.png"], 'fps' => 0, 'direction' => 'none', 'label' => 'Orange'],
+        ['frames' => ["{$pack}/ghosts/blinky.png"], 'fps' => 0, 'direction' => 'none', 'hue' => 75, 'label' => 'Lime'],
+        ['frames' => ["{$pack}/ghosts/blinky.png"], 'fps' => 0, 'direction' => 'none', 'hue' => 140, 'label' => 'Green'],
+        ['frames' => ["{$pack}/ghosts/blinky.png"], 'fps' => 0, 'direction' => 'none', 'hue' => 210, 'label' => 'Blue'],
+        ['frames' => ["{$pack}/ghosts/blinky.png"], 'fps' => 0, 'direction' => 'none', 'hue' => 250, 'label' => 'Indigo'],
+        ['frames' => ["{$pack}/ghosts/blinky.png"], 'fps' => 0, 'direction' => 'none', 'hue' => 285, 'label' => 'Violet'],
     ],
 
     'ghost_frightened' => [

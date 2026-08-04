@@ -5,6 +5,7 @@
          data-player-id="{{ $player->id }}"
          data-input-url="{{ route('games.input', $game) }}"
          data-ability-url="{{ route('games.ability', $game) }}"
+         data-lobby-url="{{ route('games.lobby', $game) }}"
          data-maze="{{ json_encode($game->maze_layout) }}"
          data-sprites="{{ json_encode(config('sprites')) }}"
          data-sounds="{{ json_encode(config('sounds')) }}">
@@ -16,7 +17,9 @@
             <span id="hud-timer">--:--</span>
             <button id="hud-mute" class="rounded border border-slate-700 px-2 py-0.5 text-slate-400" title="Toggle sound (M)">🔊</button>
         </div>
-        <canvas id="game-canvas" class="rounded-xl border border-slate-800 bg-black"></canvas>
+        {{-- The canvas keeps its pixel size; max-w-full scales the big maze
+             down to fit narrower screens. --}}
+        <canvas id="game-canvas" class="max-w-full rounded-xl border border-slate-800 bg-black"></canvas>
         <div id="game-banner" class="pointer-events-none fixed inset-0 z-20 flex hidden items-center justify-center">
             <div id="game-banner-text" class="rounded-2xl bg-slate-900/95 px-10 py-6 text-center text-3xl font-black"></div>
         </div>

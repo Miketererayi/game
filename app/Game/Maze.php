@@ -31,8 +31,8 @@ class Maze
         '#.##.#.#####.#.##.#',
         '#....#...#...#....#',
         '####.###T#T###.####',
-        '   #.#   G   #.#   ',
-        '####.# ## ## #.####',
+        '   #.# GGGGG #.#   ',
+        '####.# ##G## #.####',
         'T....  #GGG#  ....T',
         '####.# ##### #.####',
         '   #.#       #.#   ',
@@ -47,9 +47,60 @@ class Maze
         '###################',
     ];
 
+    /**
+     * The big-lobby maze: 25x23 against the classic's 19x21, with two tunnel
+     * rows and far more junctions, so six-plus players aren't tripping over
+     * each other in the same three corridors.
+     *
+     * Every corridor is part of a loop — there are no dead ends anywhere, by
+     * construction. A cul-de-sac in a chase game is a guaranteed catch with no
+     * counterplay, so whole corridor segments were removed rather than single
+     * tiles (severing a corridor mid-run is what strands both halves).
+     * GameSetupTest re-checks connectivity on every run.
+     */
+    private const LARGE = [
+        '#########################',
+        '######.............######',
+        '######.#####.#####.######',
+        '###o......##.##......o###',
+        '###.#####.##.##.#####.###',
+        '###.#####.##.##.#####.###',
+        'T.......................T',
+        '#.####.#####.#####.####.#',
+        '#.####.#####.#####.####.#',
+        '#......#####.#####......#',
+        '#########.G.G.G.#########',
+        '#########.GG.GG.#########',
+        '#......##.G...G.##......#',
+        '#.#.##.#####.#####.##.#.#',
+        '#.#.##.#####.#####.##.#.#',
+        '#.........##.##.........#',
+        'T.......................T',
+        '#.#.##.##.##.##.##.##.#.#',
+        '#......##.##.##.##......#',
+        '#.#o#####.##P##.#####o#.#',
+        '#.#.#####.##.##.#####.#.#',
+        '#.......................#',
+        '#########################',
+    ];
+
+    /** Small lobbies stay on the tighter board; big ones get room to run. */
+    public const LARGE_MAZE_FROM_PLAYERS = 6;
+
+    /*
+     | Matches roll a fresh maze through MazeGenerator; these two hand-checked
+     | layouts are what it falls back to if generation ever fails, and what the
+     | tests measure generated mazes against.
+     */
+
     public static function classic(): array
     {
         return self::parse(self::CLASSIC);
+    }
+
+    public static function large(): array
+    {
+        return self::parse(self::LARGE);
     }
 
     public static function parse(array $rows): array

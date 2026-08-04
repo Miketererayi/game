@@ -8,9 +8,10 @@ use App\Events\GameStarted;
 use App\Events\LobbyUpdated;
 use App\Game\GameLoopLauncher;
 use App\Game\GameStateRepository;
-use App\Game\Maze;
+use App\Game\MazeGenerator;
 use App\Models\Game;
 use App\Models\GamePlayer;
+use Illuminate\Support\Str;
 use Livewire\Component;
 
 class Lobby extends Component
@@ -19,7 +20,11 @@ class Lobby extends Component
 
     public int $playerId;
 
+    /** 1 Pac-Man + 2 ghosts, any mix of people and AI. */
     public const MIN_PLAYERS = 3;
+
+    /** Arcade ghost names, so AI players read as characters not slots. */
+    private const BOT_NAMES = ['Blinky', 'Pinky', 'Inky', 'Clyde', 'Sue', 'Funky', 'Orson', 'Tim', 'Kinky'];
 
     public function mount(Game $game, GamePlayer $player): void
     {
@@ -40,7 +45,11 @@ class Lobby extends Component
         broadcast(new LobbyUpdated($this->game->id));
     }
 
-    public function pickRole(string $role): void
+    /**
+     * Picking a ghost is also picking a colour: pass the slot to claim a
+     * specific one, or leave it null to take the lowest free slot.
+     */
+    public function pickRole(string $role, ?int $slot = null): void
     {
         if (! $this->game->players_pick_roles || $this->game->status !== GameStatus::Lobby) {
             return;
@@ -60,17 +69,95 @@ class Lobby extends Component
                 ->where('id', '!=', $this->playerId)
                 ->pluck('ghost_slot')->all();
 
-            $slot = 0;
-            while (in_array($slot, $taken, true)) {
-                $slot++;
+            if ($slot === null) {
+                $slot = 0;
+                while (in_array($slot, $taken, true)) {
+                    $slot++;
+                }
+            } elseif (in_array($slot, $taken, true)) {
+                return; // that colour belongs to someone else
             }
 
-            if ($slot >= 4) {
-                return; // all ghost slots taken
+            if ($slot < 0 || $slot >= $this->ghostSlotCount()) {
+                return;
             }
 
             $this->player->update(['role' => PlayerRole::Ghost, 'ghost_slot' => $slot]);
         }
+
+        broadcast(new LobbyUpdated($this->game->id));
+    }
+
+    /** Ghost colours available: one per non-Pac-Man seat, capped by the art. */
+    public function ghostSlotCount(): int
+    {
+        return min($this->game->max_players - 1, count(config('sprites.ghosts')));
+    }
+
+    public function addBot(): void
+    {
+        $this->game->refresh();
+
+        if (! $this->player->is_host || ! $this->game->isJoinable()) {
+            return;
+        }
+
+        $used = $this->game->players()->pluck('guest_name')->all();
+        $name = collect(self::BOT_NAMES)->first(fn ($n) => ! in_array('CPU '.$n, $used, true));
+
+        $this->game->players()->create([
+            'guest_name' => 'CPU '.($name ?? Str::random(4)),
+            'session_token' => 'bot-'.Str::random(32),
+            'is_bot' => true,
+            'is_ready' => true,
+        ]);
+
+        broadcast(new LobbyUpdated($this->game->id));
+    }
+
+    /**
+     * Send a finished team back to the lobby for another round: same code,
+     * same players, same AI. Scores from the round just played are already
+     * recorded as a game_ended event, so wiping the per-match counters here
+     * doesn't lose the series history.
+     */
+    public function rematch(): void
+    {
+        $this->game->refresh();
+
+        if (! $this->player->is_host || $this->game->status !== GameStatus::Finished) {
+            return;
+        }
+
+        $this->game->update([
+            'status' => GameStatus::Lobby,
+            'started_at' => null,
+            'ended_at' => null,
+            'winner_role' => null,
+        ]);
+
+        // Roles rotate during play, so end-of-match roles and colours are
+        // arbitrary — clear them and let the team pick or roll again.
+        $this->game->players()->update([
+            'is_ready' => false,
+            'role' => null,
+            'ghost_slot' => null,
+            'score' => 0,
+            'caught_count' => 0,
+        ]);
+
+        $this->game->players()->where('is_bot', true)->update(['is_ready' => true]);
+
+        broadcast(new LobbyUpdated($this->game->id));
+    }
+
+    public function removeBot(int $playerId): void
+    {
+        if (! $this->player->is_host || $this->game->status !== GameStatus::Lobby) {
+            return;
+        }
+
+        $this->game->players()->where('id', $playerId)->where('is_bot', true)->delete();
 
         broadcast(new LobbyUpdated($this->game->id));
     }
@@ -102,7 +189,7 @@ class Lobby extends Component
         $ready = $players->where('is_ready', true);
 
         if ($ready->count() < self::MIN_PLAYERS) {
-            $this->addError('start', 'Need at least '.self::MIN_PLAYERS.' ready players (1 Pac-Man + 2 ghosts).');
+            $this->addError('start', 'Need at least '.self::MIN_PLAYERS.' ready players (1 Pac-Man + 2 ghosts). Add AI players to fill the gaps.');
 
             return;
         }
@@ -114,7 +201,8 @@ class Lobby extends Component
         }
 
         $this->game->update([
-            'maze_layout' => Maze::classic(),
+            // A fresh maze per round, sized for the lobby.
+            'maze_layout' => MazeGenerator::forPlayers($players->count())->layout(),
             'status' => GameStatus::Active,
             'started_at' => now(),
         ]);
@@ -136,6 +224,10 @@ class Lobby extends Component
         return view('livewire.lobby', [
             'players' => $this->game->players()->orderBy('id')->get(),
             'me' => $this->player,
+            'ghosts' => array_slice(config('sprites.ghosts'), 0, $this->ghostSlotCount()),
+            'lastResult' => $this->game->lastResult(),
+            'standings' => $this->game->standings(),
+            'round' => $this->game->roundNumber(),
         ]);
     }
 }

@@ -1,9 +1,16 @@
 <x-layouts.app title="Maze Chase — Lobby">
+    {{-- Decorative attract-mode chase behind the page; see resources/js/game/attract.js --}}
+    <canvas id="attract-canvas"
+            aria-hidden="true"
+            class="pointer-events-none fixed inset-0 -z-10 h-full w-full"
+            data-sprites="{{ json_encode(config('sprites')) }}"></canvas>
+
     <div class="flex min-h-screen items-center justify-center p-6">
         <div class="w-full max-w-md space-y-8">
             <header class="text-center">
                 <h1 class="text-4xl font-black tracking-tight text-yellow-400">MAZE CHASE</h1>
-                <p class="mt-2 text-sm text-slate-400">1 Pac-Man vs 2–4 ghosts. Catch or be caught — the catcher takes the crown.</p>
+                <p class="mt-2 text-sm text-slate-400">1 Pac-Man vs up to 9 ghosts. Catch or be caught — the catcher takes the crown.</p>
+                <p class="mt-1 text-xs text-slate-500">Short on people? Fill the maze with AI players and play solo.</p>
             </header>
 
             @if ($errors->any())
@@ -12,7 +19,7 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('games.store') }}" class="space-y-3 rounded-2xl border border-slate-800 bg-slate-900 p-6">
+            <form method="POST" action="{{ route('games.store') }}" class="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/85 p-6 shadow-xl shadow-slate-950/50 backdrop-blur-sm">
                 @csrf
                 <h2 class="font-bold text-slate-200">Create a game</h2>
                 <input name="name" value="{{ old('name') }}" maxlength="20" required placeholder="Your nickname"
@@ -22,7 +29,7 @@
                 </button>
             </form>
 
-            <form method="POST" action="{{ route('games.join') }}" class="space-y-3 rounded-2xl border border-slate-800 bg-slate-900 p-6">
+            <form method="POST" action="{{ route('games.join') }}" class="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/85 p-6 shadow-xl shadow-slate-950/50 backdrop-blur-sm">
                 @csrf
                 <h2 class="font-bold text-slate-200">Join with a code</h2>
                 <input name="name" value="{{ old('name') }}" maxlength="20" required placeholder="Your nickname"
@@ -35,4 +42,6 @@
             </form>
         </div>
     </div>
+
+    @vite('resources/js/game/attract.js')
 </x-layouts.app>
